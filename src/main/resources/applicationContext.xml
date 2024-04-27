@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:aop="http://www.springframework.org/schema/aop"
+       xmlns:tx="http://www.springframework.org/schema/tx"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+    					 http://www.springframework.org/schema/beans/spring-beans.xsd
+       					 http://www.springframework.org/schema/context 
+       					 http://www.springframework.org/schema/context/spring-context.xsd
+       					 http://www.springframework.org/schema/aop
+       					 http://www.springframework.org/schema/aop/spring-aop.xsd
+       					 http://www.springframework.org/schema/tx
+       					 http://www.springframework.org/schema/tx/spring-tx.xsd">
+
+    <!-- 确定当前的项目中 那些包下的类 交由Spring进行管理
+            base-package:指定管理的包名
+                    com.vo:该包下的所有类和其子包下的类
+                    com.vo.*:该包下的所子包下的类
+                    如果出现多个包 以,进行分隔
+
+    -->
+
+    <aop:aspectj-autoproxy/>
+
+    <context:component-scan base-package="com.mgrru.aoptx"/>
+
+    <!-- 配置数据源
+                1.目前使用的数据源是Spring容器自带,今后的编程中有可能使用第三方的数据源 例如:c3p0
+                2.可是使用文件配置连接数据库
+                        src下创建一个db.properties文件  key-value
+                        使用<context:property-placeholder  locatiuon="db.properties"/> 读取该文件
+                        在<property name="driverClassName" value="${driverClassName}">
+            -->
+
+
+    <!--1.数据源封装类 .数据源:获取数据库连接,spring-jdbc.jar中-->
+    <bean id="dataSource" class="org.springframework.jdbc.datasource.DriverManagerDataSource">
+        <property name="driverClassName" value="com.mysql.cj.jdbc.Driver"></property>
+        <property name="url" value="jdbc:mysql://localhost:3306/test"></property>
+        <property name="username" value="root"></property>
+        <property name="password" value="123"></property>
+    </bean>
+
+    <bean id="factory" class="org.mybatis.spring.SqlSessionFactoryBean">
+        <!-- 在工厂中指定数据源 -->
+        <property name="dataSource" ref="dataSource"></property>
+    </bean>
+
+
+    <bean class="org.mybatis.spring.mapper.MapperScannerConfigurer">
+        <property name="basePackage" value="com.mgrru.aoptx.dao"></property>
+        <property name="sqlSessionFactoryBeanName" value="factory"></property>
+    </bean>
+
+
+    <!-- 2.创建事务管理 来源于Spring这个容器
+     -->
+    <bean id="txManager" class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+        <property name="dataSource" ref="dataSource"></property>
+    </bean>
+
+
+    <!-- 3.AspectJ方式的事务声明 依托于通知完成 -->
+
+    <!-- 3.1定义一个事务通知 -->
+    <tx:advice id="txAdvice" transaction-manager="txManager">
+        <!-- 具体方法的事务的管理定义 -->
+        <tx:attributes>
+            <tx:method name="add*" isolation="DEFAULT" propagation="REQUIRED" read-only="false"/>
+            <!-- 事务的属性
+                read-only="true" 表示是只读方式,只应用于select方法
+                propagation 事务传播
+                            REQUIRED:必须存在事务之中,如果没有则创建一个新的事务
+                            SUPPORTS:维持当前的事务状态(可有可无)
+                            MANDATORY:操作在事务中进行,没有事务的情况下 报错
+                            REQUIRES_NEW:必须在事务中执行 都创建一个新的
+                            NEVER:非事务状态 ,存在事务报错
+                            NESTED:嵌套事务 新建或嵌套事务
+                            NOT_SUPPORTED:一定没有事务,有的话 进行挂起
+                isolation:隔离级别(并发)
+                        DEFAULT :数据库基本
+                        READ_UNCOMMITTED:读取未提交的数据 有可能出现 脏读 幻读 不可重复读
+                        READ_COMMITTED:避免脏读
+                        REPEATABLE_READ	 数据锁 ,锁定表中的数据
+                        SERIALIZABLE 锁定表
+             -->
+        </tx:attributes>
+    </tx:advice>
+
+    <!-- 3.2创建切面 定义那些方法需要事务的管理 -->
+    <aop:config>
+        <!-- 一般使用通配符的方式 定义 -->
+        <aop:pointcut expression="execution(* com.mgrru.aoptx.service.*.*(..))" id="mypoint"/>
+        <!-- 组织 -->
+        <aop:advisor advice-ref="txAdvice" pointcut-ref="mypoint"/>
+    </aop:config>
+</beans>
